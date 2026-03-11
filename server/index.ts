@@ -83,11 +83,9 @@ app.use((req, res, next) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+const port = parseInt(process.env.PORT || "8080", 10);
 
-  const port = parseInt(process.env.PORT || "5001", 10);
-
-  // FIXED SERVER START
-  httpServer.listen(port, () => {
-    log(`Server running on http://localhost:${port}`);
-  });
+httpServer.listen(port, "0.0.0.0", () => {
+  log(`Server running on port ${port}`);
+});
 })();
