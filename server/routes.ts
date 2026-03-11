@@ -63,44 +63,45 @@ export async function registerRoutes(
         content: input.message,
       });
 
-      // Get conversation history
       const allMessages = await storage.getChatMessages(req.user.id);
       const financialData = await storage.getFinancialData(req.user.id);
 
       const systemPrompt = `
-You are an AI financial advisor for a personal finance system.
-Provide short, clear, and practical financial advice.
+You are a smart AI financial advisor.
+Give clear, short, and practical financial advice.
 
-User financial data:
+User Financial Profile:
 Income: ₹${financialData?.income || 0}
 Expenses: ₹${financialData?.expenses || 0}
 Assets: ₹${financialData?.assets || 0}
 Liabilities: ₹${financialData?.liabilities || 0}
 Credit Score: ${financialData?.creditScore || 0}
-EPF Details: ${financialData?.epfDetails || "None"}
+EPF: ${financialData?.epfDetails || "None"}
 Investments: ${JSON.stringify(financialData?.investments || [])}
 `;
 
-      const conversation = [
+      // Format conversation properly
+      const messages = [
         { role: "system", content: systemPrompt },
         ...allMessages.map((m) => ({
-          role: m.role,
-          content: m.content
-        }))
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: m.content,
+        })),
       ];
 
-      // Call Groq AI
+      // Call Groq API
       const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-          model: "llama3-70b-8192",
-          messages: conversation
+          model: "llama3-8b-8192",
+          messages: messages,
+          temperature: 0.7,
         },
         {
           headers: {
             Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json"
-          }
+            "Content-Type": "application/json",
+          },
         }
       );
 
@@ -123,7 +124,8 @@ Investments: ${JSON.stringify(financialData?.investments || [])}
         });
       }
 
-      console.error(err);
+      console.error("AI ERROR:", err?.response?.data || err.message);
+
       res.status(500).json({ message: "Internal server error" });
     }
   });
