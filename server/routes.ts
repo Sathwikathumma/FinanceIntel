@@ -14,10 +14,13 @@ export async function registerRoutes(
 
   app.get(api.financialData.get.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+
     const data = await storage.getFinancialData(req.user.id);
+
     if (!data) {
       return res.status(404).json({ message: "Data not found" });
     }
+
     res.json(data);
   });
 
@@ -27,6 +30,7 @@ export async function registerRoutes(
     try {
       const input = api.financialData.update.input.parse(req.body);
       const data = await storage.upsertFinancialData(req.user.id, input);
+
       res.status(200).json(data);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -35,12 +39,14 @@ export async function registerRoutes(
           field: err.errors[0].path.join("."),
         });
       }
+
       throw err;
     }
   });
 
   app.get(api.chat.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+
     const messages = await storage.getChatMessages(req.user.id);
     res.json(messages);
   });
@@ -57,7 +63,7 @@ export async function registerRoutes(
         content: input.message,
       });
 
-      // Get context
+      // Get conversation history
       const allMessages = await storage.getChatMessages(req.user.id);
       const financialData = await storage.getFinancialData(req.user.id);
 
@@ -77,18 +83,30 @@ Investments: ${JSON.stringify(financialData?.investments || [])}
 
       const conversation = [
         { role: "system", content: systemPrompt },
-        ...allMessages.map((m) => `${m.role}: ${m.content}`),
-      ].join("\n");
+        ...allMessages.map((m) => ({
+          role: m.role,
+          content: m.content
+        }))
+      ];
 
-      // Call Ollama API
-      const response = await axios.post("http://localhost:11434/api/generate", {
-        model: "phi3",
-        prompt: conversation,
-        stream: false,
-      });
+      // Call Groq AI
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama3-70b-8192",
+          messages: conversation
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
 
       const aiReplyContent =
-        response.data?.response || "Sorry, I couldn't generate a response.";
+        response.data?.choices?.[0]?.message?.content ||
+        "Sorry, I couldn't generate a response.";
 
       const aiReply = await storage.createChatMessage(req.user.id, {
         role: "assistant",
@@ -96,6 +114,7 @@ Investments: ${JSON.stringify(financialData?.investments || [])}
       });
 
       res.status(200).json(aiReply);
+
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({
