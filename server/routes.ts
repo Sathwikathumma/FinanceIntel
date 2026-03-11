@@ -10,10 +10,12 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
   setupAuth(app);
 
   app.get(api.financialData.get.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.isAuthenticated())
+      return res.status(401).json({ message: "Unauthorized" });
 
     const data = await storage.getFinancialData(req.user.id);
 
@@ -25,14 +27,17 @@ export async function registerRoutes(
   });
 
   app.post(api.financialData.update.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.isAuthenticated())
+      return res.status(401).json({ message: "Unauthorized" });
 
     try {
       const input = api.financialData.update.input.parse(req.body);
       const data = await storage.upsertFinancialData(req.user.id, input);
 
       res.status(200).json(data);
+
     } catch (err) {
+
       if (err instanceof z.ZodError) {
         return res.status(400).json({
           message: err.errors[0].message,
@@ -45,16 +50,20 @@ export async function registerRoutes(
   });
 
   app.get(api.chat.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.isAuthenticated())
+      return res.status(401).json({ message: "Unauthorized" });
 
     const messages = await storage.getChatMessages(req.user.id);
     res.json(messages);
   });
 
   app.post(api.chat.send.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!req.isAuthenticated())
+      return res.status(401).json({ message: "Unauthorized" });
 
     try {
+
       const input = api.chat.send.input.parse(req.body);
 
       // Save user message
@@ -63,45 +72,45 @@ export async function registerRoutes(
         content: input.message,
       });
 
+      // Fetch conversation history
       const allMessages = await storage.getChatMessages(req.user.id);
       const financialData = await storage.getFinancialData(req.user.id);
 
       const systemPrompt = `
-You are a smart AI financial advisor.
-Give clear, short, and practical financial advice.
+You are an AI financial advisor.
+Provide short, clear, practical financial advice.
 
-User Financial Profile:
+User Financial Data:
 Income: ₹${financialData?.income || 0}
 Expenses: ₹${financialData?.expenses || 0}
 Assets: ₹${financialData?.assets || 0}
 Liabilities: ₹${financialData?.liabilities || 0}
 Credit Score: ${financialData?.creditScore || 0}
-EPF: ${financialData?.epfDetails || "None"}
+EPF Details: ${financialData?.epfDetails || "None"}
 Investments: ${JSON.stringify(financialData?.investments || [])}
 `;
 
-      // Format conversation properly
       const messages = [
         { role: "system", content: systemPrompt },
         ...allMessages.map((m) => ({
           role: m.role === "assistant" ? "assistant" : "user",
-          content: m.content,
-        })),
+          content: m.content
+        }))
       ];
 
-      // Call Groq API
+      // Call Groq AI
       const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-          model: "llama3-8b-8192",
+          model: "llama-3.1-8b-instant",
           messages: messages,
-          temperature: 0.7,
+          temperature: 0.7
         },
         {
           headers: {
             Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json",
-          },
+            "Content-Type": "application/json"
+          }
         }
       );
 
@@ -116,7 +125,8 @@ Investments: ${JSON.stringify(financialData?.investments || [])}
 
       res.status(200).json(aiReply);
 
-    } catch (err) {
+    } catch (err: any) {
+
       if (err instanceof z.ZodError) {
         return res.status(400).json({
           message: err.errors[0].message,
