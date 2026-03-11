@@ -40,7 +40,7 @@ export function setupAuth(app: Express) {
       conObject: {
         connectionString: process.env.DATABASE_URL,
       },
-      createTableIfMissing: true,
+      createTableIfMissing: false,
     }),
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
